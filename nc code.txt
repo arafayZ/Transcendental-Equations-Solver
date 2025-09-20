@@ -1,0 +1,407 @@
+import tkinter as tk
+from tkinter import messagebox
+import numpy as np
+import sympy as sp
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+class EquationSolverApp:
+    def __init__(self, master):
+        self.master = master
+        self.master.title("Transcendental Equation Solver")
+
+        # Function input
+        tk.Label(master, text="Enter Function (in terms of x):").grid(row=0, column=0)
+        self.function_input = tk.Entry(master, width=50)  # column length
+        self.function_input.grid(row=0, column=1, columnspan=5)
+
+        # Additional buttons for special characters
+        self.create_special_buttons(master)
+
+        # Method selection
+        self.method_var = tk.StringVar(value="Bisection")
+        tk.Label(master, text="Select Method:").grid(row=1, column=0)
+        tk.Radiobutton(master, text="Bisection", variable=self.method_var, value="Bisection").grid(row=1, column=1)
+        tk.Radiobutton(master, text="False Position", variable=self.method_var, value="False Position").grid(row=1, column=2)
+        tk.Radiobutton(master, text="Newton-Raphson", variable=self.method_var, value="Newton").grid(row=1, column=3)
+        tk.Radiobutton(master, text="Secant", variable=self.method_var, value="Secant").grid(row=1, column=4)
+        tk.Radiobutton(master, text="Muller", variable=self.method_var, value="Muller").grid(row=1, column=5)
+
+        # Interval inputs
+        tk.Label(master, text="Interval A:").grid(row=2, column=0)
+        self.interval_a = tk.Entry(master)
+        self.interval_a.grid(row=2, column=1)
+
+        tk.Label(master, text="Interval B:").grid(row=2, column=2)
+        self.interval_b = tk.Entry(master)
+        self.interval_b.grid(row=2, column=3)
+
+        # Newton and Secant specific inputs
+        tk.Label(master, text="Newton X0:").grid(row=3, column=0)
+        self.newton_x0 = tk.Entry(master)
+        self.newton_x0.grid(row=3, column=1)
+
+        tk.Label(master, text="Secant X0:").grid(row=3, column=2)
+        self.secant_x0 = tk.Entry(master)
+        self.secant_x0.grid(row=3, column=3)
+
+        tk.Label(master, text="Secant X1:").grid(row=3, column=4)
+        self.secant_x1 = tk.Entry(master)
+        self.secant_x1.grid(row=3, column=5)
+
+        # Muller inputs
+        tk.Label(master, text="Muller X0:").grid(row=4, column=0)
+        self.muller_x0 = tk.Entry(master)
+        self.muller_x0.grid(row=4, column=1)
+
+        tk.Label(master, text="Muller X1:").grid(row=4, column=2)
+        self.muller_x1 = tk.Entry(master)
+        self.muller_x1.grid(row=4, column=3)
+
+        tk.Label(master, text="Muller X2:").grid(row=4, column=4)
+        self.muller_x2 = tk.Entry(master)
+        self.muller_x2.grid(row=4, column=5)
+
+        # Tolerance input
+        tk.Label(master, text="Tolerance:").grid(row=5, column=0)
+        self.tolerance = tk.Entry(master)
+        self.tolerance.grid(row=5, column=1)
+
+        # Solve button
+        self.solve_button = tk.Button(master, text="Solve", command=self.solve_equation)
+        self.solve_button.grid(row=6, column=0, columnspan=3)
+
+        # Clear button
+        self.clear_button = tk.Button(master, text="Clear", command=self.clear_inputs)
+        self.clear_button.grid(row=6, column=3, columnspan=3)
+
+        # Result label
+        self.result_label = tk.Label(master, text="Result: ")
+        self.result_label.grid(row=7, column=0, columnspan=6)
+
+        # Iteration label
+        self.iteration_label = tk.Label(master, text="Iterations: ")
+        self.iteration_label.grid(row=8, column=0, columnspan=6)
+
+        # Matplotlib Figure
+        self.figure = plt.Figure(figsize=(6, 4), dpi=100)
+        self.canvas = FigureCanvasTkAgg(self.figure, master)
+        self.canvas.get_tk_widget().grid(row=9, column=0, columnspan=6)
+        self.ax = self.figure.add_subplot(111)
+
+    def create_special_buttons(self, master):
+        """Create buttons for special characters."""
+        # Button for square root
+        sqrt_button = tk.Button(master, text="√", command=lambda: self.insert_character("sqrt("))
+        sqrt_button.grid(row=0, column=6)
+
+        # Button for pi
+        pi_button = tk.Button(master, text="π", command=lambda: self.insert_character("pi"))
+        pi_button.grid(row=0, column=7)
+
+        # Buttons for logarithms
+        ln_button = tk.Button(master, text="ln", command=lambda: self.insert_character("ln("))
+        ln_button.grid(row=0, column=8)
+
+        log_button = tk.Button(master, text="log", command=lambda: self.insert_character("log10("))
+        log_button.grid(row=0, column=9)
+
+        #button for 'sin', 'cos', 'tan'
+        sin_button = tk.Button(master, text="sin", command=lambda: self.insert_character("sin("))
+        sin_button.grid(row=0, column=10)
+
+        cos_button = tk.Button(master, text="cos", command=lambda: self.insert_character("cos("))
+        cos_button.grid(row=0, column=11)
+
+        tan_button = tk.Button(master, text="tan", command=lambda: self.insert_character("tan("))
+        tan_button.grid(row=0, column=12)
+
+        e_button = tk.Button(master, text="e", command=lambda: self.insert_character("exp("))
+        e_button.grid(row=1, column=6)
+
+        pow_button = tk.Button(master, text="^", command=lambda: self.insert_character("**"))
+        pow_button.grid(row=1, column=7)
+
+    def insert_character(self, character):
+        """Insert a character into the function input field."""
+        current_text = self.function_input.get()
+        self.function_input.delete(0, tk.END)
+        self.function_input.insert(0, current_text + character)
+
+    def solve_equation(self):
+        function_str = self.function_input.get().strip()
+        try:
+            # Validate the function input
+            if not function_str:
+                raise ValueError("Please enter a valid function.")
+
+            # Check for 'log' or 'ln' in the input and ensure positive intervals
+            if "log" in function_str or "ln" in function_str:
+                log_warning = (
+                    "For log and ln functions, interval values must be positive."
+                )
+
+                if self.method_var.get() in ["Bisection", "False Position"]:
+                    if not self.interval_a.get() or not self.interval_b.get():
+                        raise ValueError("Please enter values for both Interval A and Interval B.")
+                    if float(self.interval_a.get()) <= 0 or float(self.interval_b.get()) <= 0:
+                        raise ValueError(log_warning)
+
+                elif self.method_var.get() in ["Secant"]:
+                    if not self.secant_x0.get() or not self.secant_x1.get():
+                        raise ValueError("Please enter values for Secant X0 and Secant X1.")
+                    if float(self.secant_x0.get()) <= 0 or float(self.secant_x1.get()) <= 0:
+                        raise ValueError(log_warning)
+
+                elif self.method_var.get() == "Muller":
+                    if not self.muller_x0.get() or not self.muller_x1.get() or not self.muller_x2.get():
+                        raise ValueError("Please enter values for Muller X0, X1, and X2.")
+                    if (float(self.muller_x0.get()) <= 0 or
+                            float(self.muller_x1.get()) <= 0 or
+                            float(self.muller_x2.get()) <= 0):
+                        raise ValueError(log_warning)
+
+                elif self.method_var.get() == "Newton":
+                    if not self.newton_x0.get():
+                        raise ValueError("Please enter a value for Newton's X0.")
+                    if float(self.newton_x0.get()) <= 0:
+                        raise ValueError(log_warning)
+
+            # Parse the function using sympy
+            x = sp.symbols('x')
+            e = sp.E  # Euler's number
+            function = sp.lambdify(x, sp.sympify(function_str), "numpy")
+
+            # Get tolerance
+            tol = float(self.tolerance.get()) if self.tolerance.get() else 1e-7
+
+            method = self.method_var.get()
+            result = None
+            iterations = 0
+
+            # Utility function to safely parse inputs with 'e'
+            def parse_input(value):
+                if not value.strip():
+                    raise ValueError("Missing input.")
+                return float(sp.sympify(value, locals={"e": e}))
+
+            # Execute the appropriate method
+            if method == "Bisection":
+                a = parse_input(self.interval_a.get())
+                b = parse_input(self.interval_b.get())
+                result, iterations = self.bisection_method(function, a, b, tol)
+            elif method == "False Position":
+                a = parse_input(self.interval_a.get())
+                b = parse_input(self.interval_b.get())
+                result, iterations = self.false_position_method(function, a, b, tol)
+            elif method == "Newton":
+                x0 = parse_input(self.newton_x0.get())
+                result, iterations = self.newton_method(function, x0, tol)
+            elif method == "Secant":
+                x0 = parse_input(self.secant_x0.get())
+                x1 = parse_input(self.secant_x1.get())
+                result, iterations = self.secant_method(function, x0, x1, tol)
+            elif method == "Muller":
+                x0 = parse_input(self.muller_x0.get())
+                x1 = parse_input(self.muller_x1.get())
+                x2 = parse_input(self.muller_x2.get())
+                result, iterations = self.muller_method(function, x0, x1, x2, tol)
+
+            self.result_label.config(text=f"Result: {result}")
+            self.iteration_label.config(text=f"Iterations: {iterations}")
+
+            # Plot the function
+            self.plot_function(function, result)
+
+        except ValueError as ve:
+            messagebox.showerror("Input Error", str(ve))
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred: {str(e)}")
+
+    def clear_inputs(self):
+        """Clear all input fields and results."""
+        self.function_input.delete(0, tk.END)
+        self.interval_a.delete(0, tk.END)
+        self.interval_b.delete(0, tk.END)
+        self.newton_x0.delete(0, tk.END)
+        self.secant_x0.delete(0, tk.END)
+        self.secant_x1.delete(0, tk.END)
+        self.muller_x0.delete(0, tk.END)
+        self.muller_x1.delete(0, tk.END)
+        self.muller_x2.delete(0, tk.END)
+        self.tolerance.delete(0, tk.END)
+
+        self.result_label.config(text="Result: ")
+        self.iteration_label.config(text="Iterations: ")
+        self.ax.clear()
+        self.canvas.draw()
+
+    def bisection_method(self, f, a, b, tol, max_iterations=1000):
+        # Ensure that the function has opposite signs at the endpoints
+        if f(a) * f(b) >= 0:
+            raise ValueError("The function must have different signs at the endpoints A and B.")
+
+        # Initialize iteration count
+        iterations = 0
+
+        while iterations < max_iterations:
+            # Midpoint calculation
+            c = (a + b) / 2
+
+            # Check if the function value at c is sufficiently close to 0
+            if abs(f(c)) < tol:  # If we found a root close enough
+                return c, iterations
+
+            # Determine which subinterval to choose based on the sign change
+            if f(c) * f(a) < 0:
+                b = c  # The root is in the left half
+            else:
+                a = c  # The root is in the right half
+
+            iterations += 1  # Increment the iteration count
+
+            # Exit if the interval is small enough
+            if (b - a) / 2 < tol:
+                break
+
+        # Return the approximate root and the number of iterations
+        return (a + b) / 2, iterations
+
+    def false_position_method(self, f, a, b, tol, max_iterations=1000):
+        # Check if the initial interval is valid
+        if f(a) * f(b) >= 0:
+            raise ValueError("The function must have different signs at the endpoints A and B.")
+
+        # Initialize the iteration counter
+        iterations = 0
+        c = a  # Initial guess
+
+        while iterations < max_iterations:
+            # Calculate the false position
+            c = (a * f(b) - b * f(a)) / (f(b) - f(a))
+
+            # Check if we have found the root or convergence is achieved
+            if abs(f(c)) < tol:
+                break  # Root found or sufficiently close to root
+
+            # Update the interval
+            if f(c) * f(a) < 0:
+                b = c  # The root is in the left half
+            else:
+                a = c  # The root is in the right half
+
+            iterations += 1
+
+            # Check if the difference between the interval ends is less than the tolerance
+            if abs(b - a) < tol:
+                break
+
+        # If the method didn't converge in the maximum number of iterations
+        if iterations >= max_iterations:
+            raise ValueError("Maximum iterations reached. The method did not converge.")
+
+        return c, iterations
+
+    def newton_method(self, f, x0, tol, max_iterations=1000):
+        iterations = 0
+        while iterations < max_iterations:
+            f_x0 = f(x0)
+            f_prime_x0 = (f(x0 + tol) - f_x0) / tol  # Numerical derivative
+
+            if f_prime_x0 == 0:
+                raise ValueError("Derivative is zero. No solution found.")
+
+            x1 = x0 - f_x0 / f_prime_x0
+            iterations += 1
+
+            if abs(x1 - x0) < tol:
+                return x1, iterations
+
+            x0 = x1
+
+        raise ValueError(f"Newton method did not converge after {max_iterations} iterations.")
+
+    def secant_method(self, f, x0, x1, tol, max_iterations=1000):
+        iterations = 0
+
+        while iterations < max_iterations:
+            f_x0 = f(x0)
+            f_x1 = f(x1)
+
+            # Prevent division by zero if the function values are equal
+            if f_x1 == f_x0:
+                raise ValueError(f"Function values at x0 and x1 ({f_x0} and {f_x1}) are equal. No solution found.")
+
+            # Calculate the next approximation using the secant method formula
+            x2 = x1 - f_x1 * (x1 - x0) / (f_x1 - f_x0)
+
+            iterations += 1
+
+            # Stopping criterion: if the difference between successive approximations is less than tolerance
+            if abs(x2 - x1) < tol:
+                return x2, iterations
+
+            # Update the guesses for the next iteration
+            x0, x1 = x1, x2
+        # If maximum iterations are reached without convergence, raise an error
+        raise ValueError(f"Secant method did not converge after {max_iterations} iterations.")
+
+    def muller_method(self, f, x0, x1, x2, tol, max_iterations=1000):
+        iterations = 0
+        while True:
+            # Calculate the function values
+            f_x0 = f(x0)
+            f_x1 = f(x1)
+            f_x2 = f(x2)
+
+            # Create the coefficients for the quadratic
+            h0 = x1 - x0
+            h1 = x2 - x1
+            delta0 = (f_x1 - f_x0) / h0
+            delta1 = (f_x2 - f_x1) / h1
+            d = (delta1 - delta0) / (h1 + h0)
+
+            # Calculate the root
+            b = delta1 + h1 * d
+            D = (b ** 2 - 4 * f_x2 * d) ** 0.5
+
+            # Check for division by zero or small denominator
+            if abs(D) < tol:
+                raise ValueError("Small discriminant value. The method may not converge.")
+
+            # Select the root (Note: handling two possible roots)
+            x3 = x2 + ((-2 * f_x2) / (b + (D if b > 0 else -D)))
+
+            # Convergence check
+            if abs(x3 - x2) < tol:
+                break
+
+            # Avoid infinite loops if the method doesn't converge
+            if iterations >= max_iterations:
+                raise ValueError("Maximum iterations reached. The method did not converge.")
+
+            x0, x1, x2 = x1, x2, x3
+            iterations += 1
+
+        return x3, iterations
+
+    def plot_function(self, f, root):
+        """Plot the function and the root."""
+        self.ax.clear()
+        x_vals = np.linspace(-10, 10, 400)
+        y_vals = f(x_vals)
+
+        self.ax.plot(x_vals, y_vals, label='f(x)')
+        self.ax.axhline(0, color='gray', lw=0.5)
+        self.ax.axvline(0, color='gray', lw=0.5)
+        self.ax.scatter(root, f(root), color='red', zorder=5, label='Root')
+        self.ax.legend()
+        self.ax.set_title("Function Plot")
+        self.ax.set_xlabel("x")
+        self.ax.set_ylabel("f(x)")
+        self.canvas.draw()
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = EquationSolverApp(root)
+    root.mainloop()
